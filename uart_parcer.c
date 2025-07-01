@@ -12,6 +12,9 @@
 
 const uint8_t MAGIC_WORD[8] = {0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07};
 
+/*
+ * @brief uart packet header object
+ */
 typedef struct
 {
     uint32_t version;
@@ -24,12 +27,47 @@ typedef struct
     uint32_t subFrameNumber;
 } mmwHeader;
 
+// TODO:
+typedef enum
+{
+    TLV_DETECTED_POINTS = 1,
+} tlvType;
+/*
+ * @brief tlv header object
+ */
 typedef struct
 {
-    uint32_t type;
+    uint32_t type; // TODO: refactor with enum
     uint32_t length;
 } tlvHeader;
 
+/*
+ * @brief scaling factor for point cloud decompression
+ */
+typedef struct
+{
+    float elevationUnit;
+    float azimuthUnit;
+    float dopplerUnit;
+    float rangeUnit;
+    float snrUnit;
+} pointUnit;
+
+/*
+ * @brief compressed point cloud object
+ */
+typedef struct
+{
+    int8_t elevation; // radians
+    int8_t azimuth;   // radians
+    int16_t doppler;  // m/s
+    int16_t range;    // m
+    int16_t snr;      // ratio
+} pointObj;
+
+/*
+ * @brief target information object
+ */
 typedef struct
 {
     uint32_t tid;
@@ -39,7 +77,35 @@ typedef struct
     float velX;
     float velY;
     float velZ;
-} trackedObj;
+    float accX;
+    float accY;
+    float accZ;
+    float *ec[16];
+    float g;
+    float confidenceLevel;
+} listTlv;
+
+/*
+ * @brief unique target ID object
+ *
+ * 0 - 249: valid
+ * 253: point not associated: weak SNR
+ * 254: point not associated: outside interest boundary
+ * 255: point not considered: noise
+ */
+typedef struct
+{
+    uint8_t targetID; // 0 - 249 valid
+} indexTlv;
+
+// TODO: presence indication TLV
+
+typedef struct
+{
+    uint8_t targetID;
+    float maxZ;
+    float minZ;
+} heightTlv;
 
 int find_magic_word(const uint8_t *buffer, int length)
 {
@@ -73,6 +139,7 @@ void parse_header(const uint8_t *buffer, mmwHeader *header)
     header->subFrameNumber = parse_uint32(&buffer[32]);
 }
 
+// TODO: refactor
 void parse_tracked_obj(const uint8_t *payload, uint32_t payload_len)
 {
     if (payload_len < 4)
@@ -97,6 +164,7 @@ void parse_tracked_obj(const uint8_t *payload, uint32_t payload_len)
     }
 }
 
+// TODO: refactor
 void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len)
 {
     for (int i = 0; i < numTLVs; i++)
@@ -183,6 +251,7 @@ int setup_uart(const char *port_name)
     return fd;
 }
 
+// TODO: refactor
 int main()
 {
     uint8_t uart_buffer[UART_BUFFER_SIZE];
