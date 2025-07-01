@@ -21,17 +21,17 @@ def flash_cfg_file(serial_port, baud_rate, cfg_file_path):
 
     try:
         print("Sending config lines...")
-        time.sleep(2)  # wait for board
+        time.sleep(2) 
 
         for line in cfg_lines:
             line = line.strip()
-            if not line or line.startswith('%'): # ignore comments
+            if not line or line.startswith('%'):
                 continue
 
             ser.write((line + '\n').encode('utf-8'))
             ser.flush()
             print(f"Sent: {line}")
-            time.sleep(0.05)  # 50 ms delay
+            time.sleep(0.05)
 
         print("Config successfully sent.")
         

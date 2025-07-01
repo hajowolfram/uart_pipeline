@@ -6,13 +6,14 @@
 #include <termios.h>
 #include <errno.h>
 
-#define UART_PORT "/dev/ttyUSB0"   // Change this to match your radar port
-#define BAUDRATE B921600           // Radar typically uses 921600 baud
+#define UART_PORT "/dev/ttyUSB0" // Change this to match your radar port
+#define BAUDRATE 921600          // Radar typically uses 921600 baud
 #define UART_BUFFER_SIZE 4096
 
 const uint8_t MAGIC_WORD[8] = {0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07};
 
-typedef struct {
+typedef struct
+{
     uint32_t version;
     uint32_t totalPacketLen;
     uint32_t platform;
@@ -23,13 +24,15 @@ typedef struct {
     uint32_t subFrameNumber;
 } mmwHeader;
 
-typedef struct {
+typedef struct
+{
     uint32_t type;
     uint32_t length;
 } tlvHeader;
 
-typedef struct {
-    uint32 tid;
+typedef struct
+{
+    uint32_t tid;
     float posX;
     float posY;
     float posZ;
@@ -38,23 +41,28 @@ typedef struct {
     float velZ;
 } trackedObj;
 
-int find_magic_word(const uint8_t* buffer, int length) {
-    for (int i = 0; i <= length - 8; i++) {
-        if (memcmp(&buffer[i], MAGIC_WORD, 8) == 0) {
+int find_magic_word(const uint8_t *buffer, int length)
+{
+    for (int i = 0; i <= length - 8; i++)
+    {
+        if (memcmp(&buffer[i], MAGIC_WORD, 8) == 0)
+        {
             return i;
-        } 
+        }
     }
     return -1; // not fonud
 }
 
-uint32_t parse_uint32(const uint8_t* data) {
-    return ((uint32_t)data[0]) | 
-            ((uint32_t)data[1] << 8) | 
-            ((uint32_t)data[2] << 16) | 
-            ((uint32_t)data[3] << 24);
+uint32_t parse_uint32(const uint8_t *data)
+{
+    return ((uint32_t)data[0]) |
+           ((uint32_t)data[1] << 8) |
+           ((uint32_t)data[2] << 16) |
+           ((uint32_t)data[3] << 24);
 }
 
-void parse_header(const uint8_t* buffer, mmwHeader* header) {
+void parse_header(const uint8_t *buffer, mmwHeader *header)
+{
     header->version = parse_uint32(&buffer[0]);
     header->totalPacketLen = parse_uint32(&buffer[4]);
     header->platform = parse_uint32(&buffer[8]);
@@ -65,15 +73,19 @@ void parse_header(const uint8_t* buffer, mmwHeader* header) {
     header->subFrameNumber = parse_uint32(&buffer[32]);
 }
 
-void parse_tracked_obj(const uint8_t* payload, uint32_t payload_len) {
-    if (payload_len < 4) return;
+void parse_tracked_obj(const uint8_t *payload, uint32_t payload_len)
+{
+    if (payload_len < 4)
+        return;
     uint16_t numTracks = payload[0] | (payload[1] << 8);
     printf("Tracked objects: %u\n", numTracks);
 
-    const uint8_t* ptr = payload + 4;
+    const uint8_t *ptr = payload + 4;
 
-    for (uint16_t i = 0; i < numTracks; i++) {
-        if ((ptr + sizeof(trackedObj)) > payload + payload_len) break;
+    for (uint16_t i = 0; i < numTracks; i++)
+    {
+        if ((ptr + sizeof(trackedObj)) > payload + payload_len)
+            break;
 
         trackedObj obj;
         memcpy(&obj, ptr, sizeof(trackedObj));
@@ -85,28 +97,62 @@ void parse_tracked_obj(const uint8_t* payload, uint32_t payload_len) {
     }
 }
 
-void parse_tlv(const uint8_t* buffer, int numTLVs, int offset) {
-    for (int i = 0; i < numTLVs; i++) {
-        tlvHeader* tlv = (tlvHeader*)&buffer[offset];
-        uint8_t* payload = &buffer[offset + sizeof(tlvHeader)];
+void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len)
+{
+    for (int i = 0; i < numTLVs; i++)
+    {
+        if (offset + sizeof(tlvHeader) > total_len)
+            break;
+
+        tlvHeader *tlv = (tlvHeader *)&buffer[offset];
+        uint8_t *payload = (uint8_t *)&buffer[offset + sizeof(tlvHeader)];
         uint32_t payload_len = tlv->length - sizeof(tlvHeader);
 
-        switch (tlv->type) {
-            case 7:
-                printf("TLV %d — Type: %u, Length: %u\n", i, tlv->type, tlv->length);
-                parse_tracked_obj(payload, payload_len);
-                break;
-            default:
-                break;
+        if (offset + tlv->length > total_len)
+            break;
+
+        switch (tlv->type)
+        {
+        case 7:
+            printf("TLV %d — Type: %u, Length: %u\n", i, tlv->type, tlv->length);
+            parse_tracked_obj(payload, payload_len);
+            break;
+        default:
+            printf("TLV %d — Type: %u (unknown)\n", i, tlv->type);
+            break;
         }
 
         offset += tlv->length;
     }
 }
 
-int setup_uart(const char* port_name) {
+// void parse_tlv(const uint8_t *buffer, int numTLVs, int offset)
+// {
+//     for (int i = 0; i < numTLVs; i++)
+//     {
+//         tlvHeader *tlv = (tlvHeader *)&buffer[offset];
+//         uint8_t *payload = &buffer[offset + sizeof(tlvHeader)];
+//         uint32_t payload_len = tlv->length - sizeof(tlvHeader);
+
+//         switch (tlv->type)
+//         {
+//         case 7:
+//             printf("TLV %d — Type: %u, Length: %u\n", i, tlv->type, tlv->length);
+//             parse_tracked_obj(payload, payload_len);
+//             break;
+//         default:
+//             break;
+//         }
+
+//         offset += tlv->length;
+//     }
+// }
+
+int setup_uart(const char *port_name)
+{
     int fd = open(port_name, O_RDWR | O_NOCTTY | O_NDELAY);
-    if (fd == -1) {
+    if (fd == -1)
+    {
         perror("Error opening UART");
         return -1;
     }
@@ -131,35 +177,41 @@ int setup_uart(const char* port_name) {
     options.c_oflag &= ~OPOST;
 
     options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME] = 1;  // 100ms read timeout
+    options.c_cc[VTIME] = 1; // 100ms read timeout
 
     tcsetattr(fd, TCSANOW, &options);
     return fd;
 }
 
-int main() {
+int main()
+{
     uint8_t uart_buffer[UART_BUFFER_SIZE];
     int uart_fd = setup_uart(UART_PORT);
-    if (uart_fd < 0) return 1;
+    if (uart_fd < 0)
+        return 1;
 
     printf("Listening on %s...\n", UART_PORT);
 
     size_t buffer_len = 0;
 
-    while (1) {
+    while (1)
+    {
         // Read into buffer
         ssize_t n = read(uart_fd, uart_buffer + buffer_len, UART_BUFFER_SIZE - buffer_len);
-        if (n > 0) {
+        if (n > 0)
+        {
             buffer_len += n;
 
             // Look for magic word
             int idx = find_magic_word(uart_buffer, buffer_len);
-            if (idx >= 0 && buffer_len >= idx + 40) {
+            if (idx >= 0 && buffer_len >= idx + 40)
+            {
                 mmwHeader header;
                 parse_header(&uart_buffer[idx + 8], &header);
 
                 // If full frame is received
-                if (buffer_len >= idx + header.totalPacketLen) {
+                if (buffer_len >= idx + header.totalPacketLen)
+                {
                     printf("\n---- Frame %u ----\n", header.frameNumber);
                     parse_tlv(uart_buffer, header.numTLVs, idx + 8 + sizeof(mmwHeader), buffer_len);
 
@@ -171,11 +223,14 @@ int main() {
             }
 
             // Prevent overflow
-            if (buffer_len >= UART_BUFFER_SIZE - 512) {
-                buffer_len = 0;  // flush buffer if nothing parsable
+            if (buffer_len >= UART_BUFFER_SIZE - 512)
+            {
+                buffer_len = 0; // flush buffer if nothing parsable
                 printf("Warning: UART buffer flushed\n");
             }
-        } else if (n < 0) {
+        }
+        else if (n < 0)
+        {
             perror("UART read error");
             break;
         }
