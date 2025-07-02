@@ -1,6 +1,8 @@
 import serial
 import time
 import sys
+import os
+from dotenv import load_dotenv
 
 def flash_cfg_file(serial_port, baud_rate, cfg_file_path):
     try:
@@ -46,8 +48,9 @@ def flash_cfg_file(serial_port, baud_rate, cfg_file_path):
         print(f"Closed serial port {serial_port}.")
 
 if __name__ == '__main__':
-    serial_port = '/dev/cu.usbmodemR00810381' # CHANGE
+    load_dotenv()
+    COM_PORT = os.getenv('COM_PORT')
     baud_rate = 115200    
-    cfg_file_path = '/Users/hajowolfram/embedded/uart_pipeline/default_ppl_tracking.cfg' # CHANGE
-    flash_cfg_file(serial_port, baud_rate, cfg_file_path)
+    CFG_FILE_PATH = os.getenv('CFG_FILE_PATH')
+    flash_cfg_file(COM_PORT, baud_rate, CFG_FILE_PATH)
 

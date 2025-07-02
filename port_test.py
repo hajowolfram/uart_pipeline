@@ -1,9 +1,10 @@
 import serial
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-PORT = "/dev/cu.usbmodemR00810384" # change this
-
-# "/dev/cu.usbmodemR00810381"
-# "/dev/cu.usbmodemR00810384"
+DATA_PORT = os.getenv('DATA_PORT')
+PORT = "/dev/cu.usbmodemR00810384" # CHANGE
 BAUDRATE = 921600
 
 try:
