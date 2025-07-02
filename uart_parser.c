@@ -2,8 +2,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#define UART_PORT "COM5" // Change this to match your radar port
-#define BAUDRATE 921600  // Radar typically uses 921600 baud
+#ifdef _WIN64
+#elif defined(__linux__)
+#include <termios.h>
+#elif defined(__apple__)
+#include <termios.h>
+#endif
+// #include <termios.h>
+
+#define UART_PORT "COM5"
+#define BAUDRATE 921600
 #define UART_BUFFER_SIZE 4096
 #define MAX_POINTS 100
 #define MAX_OBJECTS 100
@@ -13,7 +21,8 @@ const uint8_t MAGIC_WORD[8] = {0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07};
 /*
  * @brief uart packet header object
  */
-typedef struct {
+typedef struct
+{
   uint32_t version;
   uint32_t totalPacketLen;
   uint32_t platform;
@@ -24,13 +33,23 @@ typedef struct {
   uint32_t subFrameNumber;
 } mmwHeader;
 
+// TODO: C23 to support enum underlying typing
 // TLV Type:
 // 1020 = Point Cloud
 // 1010 = Target object list
 // 1011 = Target Index
 // 1012 = Target Height
 // 1021 = Presence Indication
-typedef enum : uint32_t {
+// typedef enum : uint32_t {
+//   TLV_DETECTED_POINTS = 1,
+//   TLV_POINT_CLOUD = 1020,
+//   TLV_OBJ_LIST = 1010,
+//   TLV_INDEX = 1011,
+//   TLV_PRESENCE = 1021
+// } tlvType;
+
+typedef enum
+{
   TLV_DETECTED_POINTS = 1,
   TLV_POINT_CLOUD = 1020,
   TLV_OBJ_LIST = 1010,
@@ -38,7 +57,8 @@ typedef enum : uint32_t {
   TLV_PRESENCE = 1021
 } tlvType;
 
-typedef struct {
+typedef struct
+{
   tlvType type;
   uint32_t length;
 } tlvHeader;
@@ -46,7 +66,8 @@ typedef struct {
 /*
  * @brief scaling factor for point cloud decompression
  */
-typedef struct {
+typedef struct
+{
   float elevationUnit;
   float azimuthUnit;
   float dopplerUnit;
@@ -57,7 +78,8 @@ typedef struct {
 /*
  * @brief compressed point cloud object
  */
-typedef struct {
+typedef struct
+{
   int8_t elevation; // radians
   int8_t azimuth;   // radians
   int16_t doppler;  // m/s
@@ -68,7 +90,8 @@ typedef struct {
 /*
  * @brief target information object
  */
-typedef struct {
+typedef struct
+{
   uint32_t tid;
   float posX;
   float posY;
@@ -92,21 +115,25 @@ typedef struct {
  * 254: point not associated: outside interest boundary
  * 255: point not considered: noise
  */
-typedef struct {
+typedef struct
+{
   uint8_t targetID; // 0 - 249 valid
 } indexTlv;
 
-typedef struct {
+typedef struct
+{
   uint32_t present;
 } presenceTlv;
 
-typedef struct {
+typedef struct
+{
   uint8_t targetID;
   float maxZ;
   float minZ;
 } heightTlv;
 
-typedef struct {
+typedef struct
+{
   mmwHeader header;
 
   pointObj points[MAX_POINTS];
@@ -125,21 +152,26 @@ typedef struct {
   int numHeights;
 } radarFrame;
 
-int find_magic_word(const uint8_t *buffer, int length) {
-  for (int i = 0; i <= length - 8; i++) {
-    if (memcmp(&buffer[i], MAGIC_WORD, 8) == 0) {
+int find_magic_word(const uint8_t *buffer, int length)
+{
+  for (int i = 0; i <= length - 8; i++)
+  {
+    if (memcmp(&buffer[i], MAGIC_WORD, 8) == 0)
+    {
       return i;
     }
   }
-  return -1; // not fonud
+  return -1;
 }
 
-uint32_t parse_uint32(const uint8_t *data) {
+uint32_t parse_uint32(const uint8_t *data)
+{
   return ((uint32_t)data[0]) | ((uint32_t)data[1] << 8) |
          ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
 }
 
-void parse_header(const uint8_t *buffer, mmwHeader *header) {
+void parse_header(const uint8_t *buffer, mmwHeader *header)
+{
   header->version = parse_uint32(&buffer[0]);
   header->totalPacketLen = parse_uint32(&buffer[4]);
   header->platform = parse_uint32(&buffer[8]);
@@ -151,9 +183,12 @@ void parse_header(const uint8_t *buffer, mmwHeader *header) {
 }
 
 void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len,
-               radarFrame *frame) {
-  for (int i = 0; i < numTLVs; i++) {
-    if (offset + sizeof(tlvHeader) > total_len) {
+               radarFrame *frame)
+{
+  for (int i = 0; i < numTLVs; i++)
+  {
+    if (offset + sizeof(tlvHeader) > total_len)
+    {
       printf("TLV header out of bounds\n");
       break;
     }
@@ -162,12 +197,14 @@ void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len,
     uint8_t *payload = (uint8_t *)&buffer[offset + sizeof(tlvHeader)];
     uint32_t payload_len = tlv->length - sizeof(tlvHeader);
 
-    if (offset + tlv->length > total_len) {
+    if (offset + tlv->length > total_len)
+    {
       printf("TLV payload exceeds buffer\n");
       break;
     }
 
-    switch (tlv->type) {
+    switch (tlv->type)
+    {
     case TLV_POINT_CLOUD:
       frame->numPoints = payload_len / sizeof(pointObj);
       memcpy(frame->points, payload, frame->numPoints * sizeof(pointObj));
@@ -181,7 +218,8 @@ void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len,
       memcpy(frame->indices, payload, frame->numIndices * sizeof(indexTlv));
       break;
     case TLV_PRESENCE:
-      if (payload_len >= sizeof(presenceTlv)) {
+      if (payload_len >= sizeof(presenceTlv))
+      {
         memcpy(&frame->presence, payload, sizeof(presenceTlv));
         frame->hasPresence = 1;
       }
@@ -195,9 +233,11 @@ void parse_tlv(const uint8_t *buffer, int numTLVs, int offset, int total_len,
   }
 }
 
-int setup_uart(const char *port_name) {
+int setup_uart(const char *port_name)
+{
   int fd = open(port_name, O_RDWR | O_NOCTTY | O_NDELAY);
-  if (fd == -1) {
+  if (fd == -1)
+  {
     perror("Error opening UART");
     return -1;
   }
@@ -228,22 +268,26 @@ int setup_uart(const char *port_name) {
   return fd;
 }
 
-int main() {
+int main()
+{
   uint8_t uart_buffer[UART_BUFFER_SIZE];
   size_t buffer_len = 0;
 
   int uart_fd = setup_uart(UART_PORT);
-  if (uart_fd < 0) {
+  if (uart_fd < 0)
+  {
     return 1;
   }
 
   printf("Listening on %s...\n", UART_PORT);
 
-  while (1) {
+  while (1)
+  {
     // Read UART data into buffer
     ssize_t bytes_read =
         read(uart_fd, uart_buffer + buffer_len, UART_BUFFER_SIZE - buffer_len);
-    if (bytes_read < 0) {
+    if (bytes_read < 0)
+    {
       perror("UART read error");
       break;
     }
@@ -251,11 +295,13 @@ int main() {
 
     // Attempt to find and parse frame
     int magic_idx = find_magic_word(uart_buffer, buffer_len);
-    if (magic_idx >= 0 && buffer_len >= magic_idx + 40) {
+    if (magic_idx >= 0 && buffer_len >= magic_idx + 40)
+    {
       mmwHeader header;
       parse_header(&uart_buffer[magic_idx + 8], &header);
 
-      if (buffer_len >= magic_idx + header.totalPacketLen) {
+      if (buffer_len >= magic_idx + header.totalPacketLen)
+      {
         radarFrame frame = {0}; // zero initialize entire struct
         frame.header = header;
 
@@ -275,7 +321,8 @@ int main() {
     }
 
     // Prevent buffer overflow by resetting
-    if (buffer_len >= UART_BUFFER_SIZE - 512) {
+    if (buffer_len >= UART_BUFFER_SIZE - 512)
+    {
       printf("Warning: UART buffer flushed (too large)\n");
       buffer_len = 0;
     }
