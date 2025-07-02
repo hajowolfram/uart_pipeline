@@ -5,10 +5,17 @@
 #ifdef _WIN64
 #elif defined(__linux__)
 #include <termios.h>
-#elif defined(__apple__)
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#elif defined(__APPLE__)
 #include <termios.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #endif
-// #include <termios.h>
 
 #define UART_PORT "COM5"
 #define BAUDRATE 921600
@@ -244,8 +251,6 @@ int setup_uart(const char *port_name)
 
   struct termios options;
   tcgetattr(fd, &options);
-
-  // Set baud rate
   cfsetispeed(&options, BAUDRATE);
   cfsetospeed(&options, BAUDRATE);
 
@@ -256,16 +261,100 @@ int setup_uart(const char *port_name)
   options.c_cflag |= CS8;
   options.c_cflag &= ~CRTSCTS;
   options.c_cflag |= CREAD | CLOCAL;
-
   options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // raw input
   options.c_iflag &= ~(IXON | IXOFF | IXANY);         // no software flow
   options.c_oflag &= ~OPOST;
-
   options.c_cc[VMIN] = 0;
   options.c_cc[VTIME] = 1; // 100ms read timeout
 
   tcsetattr(fd, TCSANOW, &options);
   return fd;
+}
+
+void write_frame_to_file(const radarFrame *frame)
+{
+  char filepath[256];
+  snprintf(filepath, sizeof(filepath), "data/frame_%u.txt", frame->header.frameNumber);
+
+  FILE *file = fopen(filepath, "w");
+  if (!file)
+  {
+    perror("Failed to write frame file");
+    return;
+  }
+
+  const mmwHeader *header = &frame->header;
+
+  // Write header
+  fprintf(file, "---- Frame %u ----\n", header->frameNumber);
+  fprintf(file, "Version: %u\n", header->version);
+  fprintf(file, "Total Packet Length: %u\n", header->totalPacketLen);
+  fprintf(file, "Platform: %u\n", header->platform);
+  fprintf(file, "Frame Number: %u\n", header->frameNumber);
+  fprintf(file, "Time CPU Cycles: %u\n", header->timeCpuCycles);
+  fprintf(file, "Number of Detected Objects: %u\n", header->numDetectedObj);
+  fprintf(file, "Number of TLVs: %u\n", header->numTLVs);
+  fprintf(file, "Subframe Number: %u\n\n", header->subFrameNumber);
+
+  // Write TLV data
+  if (frame->numPoints > 0)
+  {
+    fprintf(file, "TLV 1020 - POINT_CLOUD: %d points\n", frame->numPoints);
+    for (int i = 0; i < frame->numPoints; i++)
+    {
+      pointObj pt = frame->points[i];
+      fprintf(file,
+              "  Point %d: Elev: %d, Azim: %d, Doppler: %d, Range: %d, SNR: %d\n",
+              i, pt.elevation, pt.azimuth, pt.doppler, pt.range, pt.snr);
+    }
+    fprintf(file, "\n");
+  }
+
+  if (frame->numObjects > 0)
+  {
+    fprintf(file, "TLV 1010 - OBJECT_LIST: %d objects\n", frame->numObjects);
+    for (int i = 0; i < frame->numObjects; i++)
+    {
+      listTlv obj = frame->objects[i];
+      fprintf(file,
+              "  Object %d: TID: %u, Pos: (%.2f, %.2f, %.2f), Vel: (%.2f, %.2f, %.2f), "
+              "Acc: (%.2f, %.2f, %.2f), G: %.2f, Conf: %.2f\n",
+              i, obj.tid, obj.posX, obj.posY, obj.posZ,
+              obj.velX, obj.velY, obj.velZ,
+              obj.accX, obj.accY, obj.accZ,
+              obj.g, obj.confidenceLevel);
+    }
+    fprintf(file, "\n");
+  }
+
+  if (frame->numIndices > 0)
+  {
+    fprintf(file, "TLV 1011 - INDEX: %d indices\n", frame->numIndices);
+    for (int i = 0; i < frame->numIndices; i++)
+    {
+      fprintf(file, "  Index %d: Target ID: %u\n", i, frame->indices[i].targetID);
+    }
+    fprintf(file, "\n");
+  }
+
+  if (frame->hasPresence)
+  {
+    fprintf(file, "TLV 1021 - PRESENCE: %s\n\n", frame->presence.present ? "Detected" : "Not Detected");
+  }
+
+  if (frame->numHeights > 0)
+  {
+    fprintf(file, "TLV 1012 - HEIGHT: %d entries\n", frame->numHeights);
+    for (int i = 0; i < frame->numHeights; i++)
+    {
+      heightTlv h = frame->heights[i];
+      fprintf(file, "  Height %d: Target ID: %u, MinZ: %.2f, MaxZ: %.2f\n",
+              i, h.targetID, h.minZ, h.maxZ);
+    }
+    fprintf(file, "\n");
+  }
+
+  fclose(file);
 }
 
 int main()
@@ -281,11 +370,17 @@ int main()
 
   printf("Listening on %s...\n", UART_PORT);
 
+  // Ensure data directory exists
+  struct stat st = {0};
+  if (stat("data", &st) == -1)
+  {
+    mkdir("data", 0755); // Create directory with rwxr-xr-x permissions
+  }
+
   while (1)
   {
     // Read UART data into buffer
-    ssize_t bytes_read =
-        read(uart_fd, uart_buffer + buffer_len, UART_BUFFER_SIZE - buffer_len);
+    ssize_t bytes_read = read(uart_fd, uart_buffer + buffer_len, UART_BUFFER_SIZE - buffer_len);
     if (bytes_read < 0)
     {
       perror("UART read error");
@@ -293,7 +388,6 @@ int main()
     }
     buffer_len += bytes_read;
 
-    // Attempt to find and parse frame
     int magic_idx = find_magic_word(uart_buffer, buffer_len);
     if (magic_idx >= 0 && buffer_len >= magic_idx + 40)
     {
@@ -311,24 +405,23 @@ int main()
         parse_tlv(uart_buffer, header.numTLVs, tlv_offset, buffer_len, &frame);
 
         // TODO: store frame or write to file here
+        char filepath[256];
+        snprintf(filepath, sizeof(filepath), "data/frame_%u.txt", header.frameNumber);
+        write_frame_to_file(&frame);
 
         // Remove parsed data from buffer
         size_t remaining = buffer_len - (magic_idx + header.totalPacketLen);
-        memmove(uart_buffer, uart_buffer + magic_idx + header.totalPacketLen,
-                remaining);
+        memmove(uart_buffer, uart_buffer + magic_idx + header.totalPacketLen, remaining);
         buffer_len = remaining;
       }
     }
 
-    // Prevent buffer overflow by resetting
-    if (buffer_len >= UART_BUFFER_SIZE - 512)
+    if (buffer_len >= UART_BUFFER_SIZE - 512) // reset buffer to prevent overflow
     {
       printf("Warning: UART buffer flushed (too large)\n");
       buffer_len = 0;
     }
-
-    // Optional throttling
-    usleep(1000);
+    usleep(1000); // throttling
   }
 
   close(uart_fd);
