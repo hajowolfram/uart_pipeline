@@ -9,8 +9,8 @@ ls /dev/tty.* /dev/cu.*
 ```
 ### for windows:
 check device manager -> ports: COM & LPT
-### rename .env_dummmy to .env
-### modify file path and ports in .env 
+rename .env_dummmy to .env
+modify file path and ports in .env 
 
 ## additional resources
 3D people tracking:
