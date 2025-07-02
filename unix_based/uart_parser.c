@@ -17,7 +17,7 @@
 #include <sys/types.h>
 #endif
 
-#define UART_PORT "COM5"
+#define UART_PORT "/dev/cu.usbmodemR00810384" // CHANGE THIS
 #define BAUDRATE 921600
 #define UART_BUFFER_SIZE 4096
 #define MAX_POINTS 100

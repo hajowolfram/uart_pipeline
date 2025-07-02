@@ -1,6 +1,9 @@
 import serial
 
-PORT = 'COM5' # change this
+PORT = "/dev/cu.usbmodemR00810384" # change this
+
+# "/dev/cu.usbmodemR00810381"
+# "/dev/cu.usbmodemR00810384"
 BAUDRATE = 921600
 
 try:

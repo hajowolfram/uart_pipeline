@@ -46,8 +46,8 @@ def flash_cfg_file(serial_port, baud_rate, cfg_file_path):
         print(f"Closed serial port {serial_port}.")
 
 if __name__ == '__main__':
-    serial_port = 'COM4'   
+    serial_port = '/dev/cu.usbmodemR00810381' # CHANGE
     baud_rate = 115200    
-    cfg_file_path = 'C:/Users/hajob/arqaios/uart-pipeline/default_ppl_tracking.cfg'
+    cfg_file_path = '/Users/hajowolfram/embedded/uart_pipeline/default_ppl_tracking.cfg' # CHANGE
     flash_cfg_file(serial_port, baud_rate, cfg_file_path)
 
