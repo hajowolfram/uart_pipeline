@@ -1,4 +1,8 @@
 .env
 *.env
 data/
+data_sitting/
+data_standing/
 a.out
+parser_old.c
+bin/
