@@ -4,13 +4,14 @@ git clone https://github.com/hajowolfram/uart_pipeline.git
 ```
 ## 2. setup
 ### for unix:
+list ports
 ```bash
 ls /dev/tty.* /dev/cu.*
 ```
+rename .env_dummy to .env
+modify the path and ports in .env
 ### for windows (NOTE, WINDOWS NOT YET SUPPORTED):
 check device manager -> ports: COM & LPT
-rename .env_dummmy to .env
-modify file path and ports in .env 
 
 ## 3. setting up virtual environment
 create virtual environment of choice (eg. using conda)
