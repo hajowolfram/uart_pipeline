@@ -7,10 +7,33 @@ git clone https://github.com/hajowolfram/uart_pipeline.git
 ```bash
 ls /dev/tty.* /dev/cu.*
 ```
-### for windows:
+### for windows (NOTE, WINDOWS NOT YET SUPPORTED):
 check device manager -> ports: COM & LPT
 rename .env_dummmy to .env
 modify file path and ports in .env 
+
+## 3. setting up virtual environment
+create virtual environment of choice (eg. using conda)
+```bash
+conda create env --name "your-env-name" python=3.8
+```
+activate virtual environment
+```bash 
+conda activate "your-env-name"
+```
+install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+## 4. running the script:
+run script (writing to tlv to data/ in repo root)
+```bash
+python main.py
+```
+
+## 5. optional custom output formatting
+see write_frame_to_file in parser.h to customise formatting as desired
 
 ## additional resources
 3D people tracking:

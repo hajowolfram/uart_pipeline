@@ -6,3 +6,4 @@ data_standing/
 a.out
 parser_old.c
 bin/
+.vscode/
