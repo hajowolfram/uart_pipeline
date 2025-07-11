@@ -15,7 +15,7 @@ modify file path and ports in .env
 ## 3. setting up virtual environment
 create virtual environment of choice (eg. using conda)
 ```bash
-conda create env --name "your-env-name" python=3.8
+conda create --name "your-env-name" python=3.8
 ```
 activate virtual environment
 ```bash 
