@@ -8,8 +8,8 @@ list ports
 ```bash
 ls /dev/tty.* /dev/cu.*
 ```
-rename .env_dummy to .env
-modify the path and ports in .env
+rename .env_dummy to .env <br/>
+modify the path and ports in .env and parser.h
 ### for windows (NOTE, WINDOWS NOT YET SUPPORTED):
 check device manager -> ports: COM & LPT
 
